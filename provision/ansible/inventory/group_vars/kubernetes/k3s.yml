@@ -17,10 +17,10 @@ k3s_become_for_all: true
 k3s_debug: false
 
 # (bool) Enable etcd embedded datastore
-k3s_etcd_datastore: true
+k3s_etcd_datastore: false
 
 # (bool) Allow the use of unsupported configurations in k3s
-k3s_use_unsupported_config: false
+k3s_use_unsupported_config: true
 
 # (string) Control Plane registration address
 k3s_registration_address: "{{ kubevip_address }}"
@@ -34,5 +34,5 @@ k3s_server_manifests_urls:
 # /var/lib/rancher/k3s/server/manifests
 k3s_server_manifests_templates:
   - "calico-installation.yaml.j2"
-  - "kube-vip-rbac.yaml.j2"
-  - "kube-vip-daemonset.yaml.j2"
+#  - "kube-vip-rbac.yaml.j2"
+#  - "kube-vip-daemonset.yaml.j2"

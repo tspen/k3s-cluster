@@ -64,40 +64,23 @@ metadata:
   namespace: default
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    hajimari.io/enable: "true"
+    hajimari.io/icon: "weather-sunset"
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: "archivebox.${SECRET_DOMAIN}"
-      http:
-        paths:
-          - backend:
-              serviceName: archivebox
-              servicePort: 8000
-            path: "/"
+  ingressClassName: "traefik"
   tls:
     - hosts:
         - "archivebox.${SECRET_DOMAIN}"
       secretName: "archivebox-tls"
-
-
-  
-
-  # ingress:
-  #   main:
-  #     enabled: true
-  #     ingressClassName: "traefik"
-  #     annotations:
-  #       cert-manager.io/cluster-issuer: "letsencrypt-production"
-  #       hajimari.io/enable: "true"
-  #       hajimari.io/icon: "weather-sunset"
-  #       traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-  #     hosts:
-  #       - host: "archivebox.${SECRET_DOMAIN}"
-  #         paths:
-  #           - path: /
-  #             pathType: Prefix
-  #     tls:
-  #       - hosts:
-  #           - "archivebox.${SECRET_DOMAIN}"
-  #         secretName: "archivebox-tls"
+  rules:
+    - host: "archivebox.${SECRET_DOMAIN}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: archivebox
+                port:
+                  number: 8000

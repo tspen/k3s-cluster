@@ -43,22 +43,61 @@ spec:
         - name: archivebox-config
           persistentVolumeClaim:
             claimName: archivebox-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archivebox
+  namespace: default
+spec:
+  ports:
+    - name: http
+      port: 8000
+  selector:
+    app: archivebox
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: archivebox
+  namespace: default
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: "archivebox.${SECRET_DOMAIN}"
+      http:
+        paths:
+          - backend:
+              serviceName: archivebox
+              servicePort: 8000
+            path: "/"
+  tls:
+    - hosts:
+        - "archivebox.${SECRET_DOMAIN}"
+      secretName: "archivebox-tls"
 
-  ingress:
-    main:
-      enabled: true
-      ingressClassName: "traefik"
-      annotations:
-        cert-manager.io/cluster-issuer: "letsencrypt-production"
-        hajimari.io/enable: "true"
-        hajimari.io/icon: "weather-sunset"
-        traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
-      hosts:
-        - host: "archivebox.${SECRET_DOMAIN}"
-          paths:
-            - path: /
-              pathType: Prefix
-      tls:
-        - hosts:
-            - "archivebox.${SECRET_DOMAIN}"
-          secretName: "archivebox-tls"
+
+  
+
+  # ingress:
+  #   main:
+  #     enabled: true
+  #     ingressClassName: "traefik"
+  #     annotations:
+  #       cert-manager.io/cluster-issuer: "letsencrypt-production"
+  #       hajimari.io/enable: "true"
+  #       hajimari.io/icon: "weather-sunset"
+  #       traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+  #     hosts:
+  #       - host: "archivebox.${SECRET_DOMAIN}"
+  #         paths:
+  #           - path: /
+  #             pathType: Prefix
+  #     tls:
+  #       - hosts:
+  #           - "archivebox.${SECRET_DOMAIN}"
+  #         secretName: "archivebox-tls"

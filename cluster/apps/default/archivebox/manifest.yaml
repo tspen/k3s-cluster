@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: archivebox
+  namespace: default
+spec:
+  interval: 5m
+  selector:
+    matchLabels:
+      app: archivebox
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: archivebox
+    spec:
+      initContainers:
+      - name: init-archivebox
+        image: archivebox/archivebox
+        args: ['init']
+        volumeMounts:
+          - mountPath: /data
+            name: archivebox-config
+      containers:
+        - name: archivebox
+          args: ["server"]
+          image: archivebox/archivebox
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - mountPath: /data
+              name: archivebox-config
+      restartPolicy: Always
+      volumes:
+        - name: archivebox-config
+          persistentVolumeClaim:
+            claimName: archivebox-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: archivebox
+  namespace: default
+spec:
+  ports:
+    - name: http
+      port: 8000
+  selector:
+    app: archivebox
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: archivebox
+  namespace: default
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    cert-manager.io/cluster-issuer: "letsencrypt-production"
+    hajimari.io/enable: "true"
+    hajimari.io/icon: "weather-sunset"
+spec:
+  ingressClassName: "traefik"
+  tls:
+    - hosts:
+        - "archivebox.${SECRET_DOMAIN}"
+      secretName: "archivebox-tls"
+  rules:
+    - host: "archivebox.${SECRET_DOMAIN}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: archivebox
+                port:
+                  number: 8000

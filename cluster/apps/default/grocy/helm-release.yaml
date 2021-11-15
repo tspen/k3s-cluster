@@ -39,7 +39,7 @@ spec:
               - path: /
                 pathType: Prefix
         tls:
-          - secretName: "${SECRET_DOMAIN/./-}-tls"
+          - secretName: "grocy-tls"
             hosts:
               - "grocy.${SECRET_DOMAIN}"
 

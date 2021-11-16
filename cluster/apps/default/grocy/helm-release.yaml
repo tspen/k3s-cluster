@@ -19,11 +19,6 @@ spec:
   values:
     image:
       repository: linuxserver/grocy
-      pullPolicy: IfNotPresent
-
-    env:
-      TZ: "${CONFIG_TZ}"
-
     ingress:
       main:
         enabled: true
@@ -42,7 +37,6 @@ spec:
           - secretName: "grocy-tls"
             hosts:
               - "grocy.${SECRET_DOMAIN}"
-
     persistence:
       data:
         enabled: true

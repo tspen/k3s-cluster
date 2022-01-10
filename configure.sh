@@ -8,6 +8,7 @@ export PROJECT_DIR=$(git rev-parse --show-toplevel)
 
 # shellcheck disable=SC2155
 export GPG_TTY=$(tty)
+export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 
 # shellcheck disable=SC1091
 source "${PROJECT_DIR}/.config.env"
@@ -31,7 +32,7 @@ main() {
         verify_ansible_hosts
         verify_metallb
         verify_kubevip
-        verify_gpg
+        verify_age
         verify_git_repository
         verify_cloudflare
         success
@@ -94,6 +95,16 @@ _has_binary() {
     }
 }
 
+_has_optional_envar() {
+    local option="${1}"
+    # shellcheck disable=SC2015
+    [[ "${!option}" == "" ]] && {
+        _log "WARN" "Unset optional variable ${option}"
+    } || {
+        _log "INFO" "Found variable '${option}' with value '${!option}'"
+    }
+}
+
 _has_envar() {
     local option="${1}"
     # shellcheck disable=SC2015
@@ -117,22 +128,22 @@ _has_valid_ip() {
     fi
 }
 
-verify_gpg() {
-    _has_envar "BOOTSTRAP_PERSONAL_KEY_FP"
-    _has_envar "BOOTSTRAP_FLUX_KEY_FP"
+verify_age() {
+    _has_envar "BOOTSTRAP_AGE_PUBLIC_KEY"
+    _has_envar "SOPS_AGE_KEY_FILE"
 
-    if ! gpg --list-keys "${BOOTSTRAP_PERSONAL_KEY_FP}" >/dev/null 2>&1; then
-         _log "ERROR" "Invalid Personal GPG FP ${BOOTSTRAP_PERSONAL_KEY_FP}"
+    if [[ ! "$BOOTSTRAP_AGE_PUBLIC_KEY" =~ ^age.* ]]; then
+        _log "ERROR" "BOOTSTRAP_AGE_PUBLIC_KEY does not start with age"
         exit 1
     else
-        _log "INFO" "Found Personal GPG Fingerprint '${BOOTSTRAP_PERSONAL_KEY_FP}'"
+        _log "INFO" "Age public key is in the correct format"
     fi
 
-    if ! gpg --list-keys "${BOOTSTRAP_FLUX_KEY_FP}" >/dev/null 2>&1; then
-         _log "ERROR" "Invalid Flux GPG FP '${BOOTSTRAP_FLUX_KEY_FP}'"
+    if [[ ! -f ~/.config/sops/age/keys.txt ]]; then
+        _log "ERROR" "Unable to find Age file keys.txt in ~/.config/sops/age"
         exit 1
     else
-         _log "INFO" "Found Flux GPG Fingerprint '${BOOTSTRAP_FLUX_KEY_FP}'"
+        _log "INFO" "Found Age public key '${BOOTSTRAP_AGE_PUBLIC_KEY}'"
     fi
 }
 
@@ -141,7 +152,7 @@ verify_binaries() {
     _has_binary "envsubst"
     _has_binary "flux"
     _has_binary "git"
-    _has_binary "gpg"
+    _has_binary "age"
     _has_binary "helm"
     _has_binary "ipcalc"
     _has_binary "jq"
@@ -213,6 +224,14 @@ verify_ansible_hosts() {
     local node_username=
     local node_password=
     local node_control=
+    local node_hostname=
+    local default_control_node_prefix=
+    local default_worker_node_prefix=
+    
+    default_control_node_prefix="BOOTSTRAP_ANSIBLE_DEFAULT_CONTROL_NODE_HOSTNAME_PREFIX"
+    default_worker_node_prefix="BOOTSTRAP_ANSIBLE_DEFAULT_NODE_HOSTNAME_PREFIX"
+    _has_optional_envar "${default_control_node_prefix}"
+    _has_optional_envar "${default_worker_node_prefix}"
 
     for var in "${!BOOTSTRAP_ANSIBLE_HOST_ADDR_@}"; do
         node_id=$(echo "${var}" | awk -F"_" '{print $5}')
@@ -220,11 +239,12 @@ verify_ansible_hosts() {
         node_username="BOOTSTRAP_ANSIBLE_SSH_USERNAME_${node_id}"
         node_password="BOOTSTRAP_ANSIBLE_SUDO_PASSWORD_${node_id}"
         node_control="BOOTSTRAP_ANSIBLE_CONTROL_NODE_${node_id}"
-
+        node_hostname="BOOTSTRAP_ANSIBLE_HOSTNAME_${node_id}"
         _has_envar "${node_addr}"
         _has_envar "${node_username}"
         _has_envar "${node_password}"
         _has_envar "${node_control}"
+        _has_optional_envar "${node_hostname}"
 
         if ssh -q -o BatchMode=yes -o ConnectTimeout=5 "${!node_username}"@"${!var}" "true"; then
             _log "INFO" "Successfully SSH'ed into host '${!var}' with username '${!node_username}'"
@@ -244,21 +264,43 @@ generate_ansible_host_secrets() {
     local node_id=
     local node_username=
     local node_password=
+    local node_hostname=
+    default_control_node_prefix=${BOOTSTRAP_ANSIBLE_DEFAULT_CONTROL_NODE_HOSTNAME_PREFIX:-k8s-}
+    default_worker_node_prefix=${BOOTSTRAP_ANSIBLE_DEFAULT_NODE_HOSTNAME_PREFIX:-k8s-}
     for var in "${!BOOTSTRAP_ANSIBLE_HOST_ADDR_@}"; do
         node_id=$(echo "${var}" | awk -F"_" '{print $5}')
+        if [[ "${!node_control}" == "true" ]]; then
+            node_hostname="BOOTSTRAP_ANSIBLE_HOSTNAME_${node_id}"
+            host_key="${!node_hostname:-${default_control_node_prefix}}"
+            if [ "${host_key}" == "${default_control_node_prefix}" ]; then
+                node_hostname=${default_control_node_prefix}${node_id}
+            else
+                node_hostname=${!node_hostname}
+            fi
+        else
+            node_hostname="BOOTSTRAP_ANSIBLE_HOSTNAME_${node_id}"
+            host_key="${!node_hostname:-${default_worker_node_prefix}}"
+            if [ "${host_key}" == "${default_worker_node_prefix}" ]; then
+                node_hostname=${default_worker_node_prefix}${node_id}
+            else
+                node_hostname=${!node_hostname}
+            fi
+        fi
         {
             node_username="BOOTSTRAP_ANSIBLE_SSH_USERNAME_${node_id}"
             node_password="BOOTSTRAP_ANSIBLE_SUDO_PASSWORD_${node_id}"
             printf "kind: Secret\n"
             printf "ansible_user: %s\n" "${!node_username}"
             printf "ansible_become_pass: %s\n" "${!node_password}"
-        } > "${PROJECT_DIR}/provision/ansible/inventory/host_vars/k8s-${node_id}.sops.yml"
-        sops --encrypt --in-place "${PROJECT_DIR}/provision/ansible/inventory/host_vars/k8s-${node_id}.sops.yml"
+        } > "${PROJECT_DIR}/provision/ansible/inventory/host_vars/${node_hostname}.sops.yml"
+        sops --encrypt --in-place "${PROJECT_DIR}/provision/ansible/inventory/host_vars/${node_hostname}.sops.yml"
     done
 }
 
 generate_ansible_hosts() {
     local worker_node_count=
+    default_control_node_prefix=${BOOTSTRAP_ANSIBLE_DEFAULT_CONTROL_NODE_HOSTNAME_PREFIX:-k8s-}
+    default_worker_node_prefix=${BOOTSTRAP_ANSIBLE_DEFAULT_NODE_HOSTNAME_PREFIX:-k8s-}
     {
         printf -- "---\n"
         printf "kubernetes:\n"
@@ -270,7 +312,14 @@ generate_ansible_hosts() {
             node_id=$(echo "${var}" | awk -F"_" '{print $5}')
             node_control="BOOTSTRAP_ANSIBLE_CONTROL_NODE_${node_id}"
             if [[ "${!node_control}" == "true" ]]; then
-                printf "        k8s-%s:\n" "${node_id}"
+                node_hostname="BOOTSTRAP_ANSIBLE_HOSTNAME_${node_id}"
+                host_key="${!node_hostname:-${default_control_node_prefix}}"
+                if [ "${host_key}" == "${default_control_node_prefix}" ]; then
+                    node_hostname=${default_control_node_prefix}${node_id}
+                else
+                    node_hostname=${!node_hostname}
+            fi
+                printf "        %s:\n" "${node_hostname}"
                 printf "          ansible_host: %s\n" "${!var}"
             else
                 worker_node_count=$((worker_node_count+1))
@@ -283,7 +332,14 @@ generate_ansible_hosts() {
                 node_id=$(echo "${var}" | awk -F"_" '{print $5}')
                 node_control="BOOTSTRAP_ANSIBLE_CONTROL_NODE_${node_id}"
                 if [[ "${!node_control}" == "false" ]]; then
-                    printf "        k8s-%s:\n" "${node_id}"
+                    node_hostname="BOOTSTRAP_ANSIBLE_HOSTNAME_${node_id}"
+                    host_key="${!node_hostname:-${default_worker_node_prefix}}"
+                    if [ "${host_key}" == "${default_worker_node_prefix}" ]; then
+                        node_hostname=${default_worker_node_prefix}${node_id}
+                    else
+                        node_hostname=${!node_hostname}
+                    fi
+                    printf "        %s:\n" "${node_hostname}"
                     printf "          ansible_host: %s\n" "${!var}"
                 fi
             done

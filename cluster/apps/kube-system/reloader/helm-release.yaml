@@ -8,7 +8,6 @@ spec:
   interval: 5m
   chart:
     spec:
-      # renovate: registryUrl=https://stakater.github.io/stakater-charts
       chart: reloader
       version: v0.0.105
       sourceRef:
@@ -17,5 +16,4 @@ spec:
         namespace: flux-system
       interval: 5m
   values:
-    nameOverride: reloader
     fullnameOverride: reloader

@@ -33,9 +33,9 @@ _Additional applications include [hajimari](https://github.com/toboshii/hajimari
 
 For provisioning the following tools will be used:
 
-- [Ubuntu](https://ubuntu.com/download/server) - this is a pretty universal operating system that supports running all kinds of home related workloads in Kubernetes
-- [Ansible](https://www.ansible.com) - this will be used to provision the Ubuntu operating system to be ready for Kubernetes and also to install k3s
-- [Terraform](https://www.terraform.io) - in order to help with the DNS settings this will be used to provision an already existing Cloudflare domain and certain DNS settings
+- [Ubuntu](https://ubuntu.com/download/server) - Universal operating system that supports running all kinds of home related workloads in Kubernetes
+- [Ansible](https://www.ansible.com) - Provision the Ubuntu OS and install k3s
+- [Terraform](https://www.terraform.io) - Provision an already existing Cloudflare domain and certain DNS records to be used with your k3s cluster
 
 ## 📝 Prerequisites
 
@@ -44,7 +44,7 @@ For provisioning the following tools will be used:
 ### 💻 Systems
 
 - One or more nodes with a fresh install of [Ubuntu Server 22.04](https://ubuntu.com/download/server).
-  - These nodes can be bare metal or VMs.
+  - These nodes can be ARM64/AMD64 bare metal or VMs.
   - An odd number of control plane nodes, greater than or equal to 3 is required if deploying more than one control plane node.
 - A [Cloudflare](https://www.cloudflare.com/) account with a domain, this will be managed by Terraform and external-dns. You can [register new domains](https://www.cloudflare.com/products/registrar/) directly thru Cloudflare.
 - Some experience in debugging problems and a positive attitude ;)

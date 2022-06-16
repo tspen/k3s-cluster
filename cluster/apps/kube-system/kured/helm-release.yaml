@@ -2,17 +2,17 @@
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
 metadata:
-  name: reflector
+  name: kured
   namespace: kube-system
 spec:
   interval: 5m
   chart:
     spec:
-      chart: reflector
-      version: 6.1.47
+      chart: kured
+      version: 2.15.0
       sourceRef:
         kind: HelmRepository
-        name: emberstack
+        name: weaveworks-kured
         namespace: flux-system
       interval: 5m
   install:
@@ -24,5 +24,9 @@ spec:
       retries: 3
   values:
     configuration:
-      logging:
-        minimumLevel: Debug
+      annotateNodes: true
+      startTime: "10pm"
+      endTime: "2am"
+      logFormat: "json"
+      rebootCommand: "/bin/systemctl reboot"
+      timeZone: "${TIMEZONE}"

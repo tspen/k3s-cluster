@@ -3,9 +3,9 @@ apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
 metadata:
   name: cert-manager
-  namespace: cert-manager
+  namespace: kube-system
 spec:
-  interval: 5m
+  interval: 15m
   chart:
     spec:
       chart: cert-manager
@@ -14,13 +14,14 @@ spec:
         kind: HelmRepository
         name: jetstack
         namespace: flux-system
+      interval: 15m
   install:
     createNamespace: true
     remediation:
-      retries: 3
+      retries: 5
   upgrade:
     remediation:
-      retries: 3
+      retries: 5
   values:
     installCRDs: false
     webhook:

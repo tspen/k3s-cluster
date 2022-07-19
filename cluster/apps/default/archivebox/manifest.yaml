@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,12 +18,12 @@ spec:
         app: archivebox
     spec:
       initContainers:
-      - name: init-archivebox
-        image: archivebox/archivebox
-        args: ['init']
-        volumeMounts:
-          - mountPath: /data
-            name: archivebox-config
+        - name: init-archivebox
+          image: archivebox/archivebox
+          args: ['init']
+          volumeMounts:
+            - mountPath: /data
+              name: archivebox-config
       containers:
         - name: archivebox
           args: ["server"]
@@ -63,12 +64,12 @@ metadata:
   name: archivebox
   namespace: default
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
     cert-manager.io/cluster-issuer: "letsencrypt-production"
     hajimari.io/enable: "true"
     hajimari.io/icon: "weather-sunset"
 spec:
-  ingressClassName: "traefik"
+  ingressClassName: "nginx"
   tls:
     - hosts:
         - "archivebox.${SECRET_DOMAIN}"
